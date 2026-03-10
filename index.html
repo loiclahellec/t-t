@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>L'Écosystème des Think Tanks à Bruxelles</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0e0e1a; overflow: hidden; }
+    #root { height: 100%; }
+    @keyframes slideUp {
+      from { opacity:0; transform:translateX(-50%) translateY(10px); }
+      to   { opacity:1; transform:translateX(-50%) translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity:0; transform:translateY(5px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: rgba(232,220,200,0.1); border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+    /* ───────────────────────── DATA ───────────────────────── */
+    const THINK_TANKS = [
+      { id:"bruegel", label:"Bruegel", budget:7.8, rank:1, model:"members", focus:"Macroéconomie, gouvernance", pol:"Pro-intégration, modéré", detail:"Fondé en 2005 par Jean Pisani-Ferry. Modèle diversifié et non-fléché (70% cotisations membres). Rôle clé dans l'Union bancaire.", xp:0.58,yp:0.48, risk:0, year:2005, theme:"macro" },
+      { id:"ceps", label:"CEPS", budget:6.2, rank:2, model:"eu_dependent", focus:"Marché unique, régulation", pol:"Pro-fédéraliste, pro-régulation", detail:"Fondé en 1983, l'un des premiers TT bruxellois. Créé pour accompagner le marché unique sous Delors.", xp:0.68,yp:0.65, risk:1, year:1983, theme:"regulation" },
+      { id:"epc", label:"EPC", budget:5.7, rank:3, model:"eu_dependent", focus:"Politique européenne généraliste", pol:"Pro-intégration", detail:"European Policy Centre (1996). Cible la Commission. 5% financement CERV.", xp:0.62,yp:0.58, risk:2, year:1996, theme:"general" },
+      { id:"mcc", label:"MCC Brussels", budget:6.0, rank:4, model:"single_donor", focus:"Liberté d'expression, médias, anti-régulation", pol:"Eurosceptique, conservateur", detail:"Ouvert en 2023 par la Hongrie. 100% financé par Budapest via fondation MOL. 3e TT le mieux doté. Équipe proche de Reform UK.", xp:0.18,yp:0.28, risk:3, year:2023, theme:"media" },
+      { id:"friends", label:"Friends of Europe", budget:3.5, rank:5, model:"mixed", focus:"Questions européennes transversales", pol:"Pro-intégration", detail:"Créé en 1999. Reflète l'élargissement et la politisation de l'UE.", xp:0.58,yp:0.52, risk:1, year:1999, theme:"general" },
+      { id:"carnegie", label:"Carnegie Europe", budget:4.0, rank:5, model:"us_endowment", focus:"Géopolitique, relations internationales", pol:"Atlantiste, libéral-internationaliste", detail:"Antenne bruxelloise du Carnegie Endowment for International Peace.", xp:0.52,yp:0.48, risk:0, year:2007, theme:"geopolitics" },
+      { id:"gmf", label:"German Marshall Fund", budget:3.5, rank:6, model:"us_endowment", focus:"Relations transatlantiques", pol:"Atlantiste", detail:"Rôle historique dans les liens transatlantiques. Présence à Bruxelles.", xp:0.48,yp:0.42, risk:1, year:1972, theme:"transatlantic" },
+      { id:"delors", label:"Institut Jacques Delors", budget:2.5, rank:6, model:"eu_dependent", focus:"Intégration européenne", pol:"Fédéraliste", detail:"Présent à Paris/Berlin. Principal centre français sur l'UE. 17% financement CERV — fragilisé par la réorientation.", xp:0.78,yp:0.62, risk:3, year:1996, theme:"general" },
+      { id:"feps", label:"FEPS", budget:2.5, rank:7, model:"party", focus:"Politique sociale, progressisme", pol:"Social-démocrate", detail:"Foundation for European Progressive Studies. Liée au Parti socialiste européen / S&D.", xp:0.72,yp:0.78, risk:1, year:2007, theme:"social" },
+      { id:"ecipe", label:"ECIPE", budget:2.0, rank:8, model:"single_donor", focus:"Commerce, déréglementation", pol:"Pro-libéralisation, libre-échange", detail:"Financé majoritairement par la Suède. Vues très prononcées pro-déréglementation.", xp:0.38,yp:0.18, risk:1, year:2006, theme:"trade" },
+      { id:"martens", label:"Wilfried Martens Centre", budget:2.0, rank:8, model:"party", focus:"Centre-droit, valeurs démocrate-chrétiennes", pol:"Centre-droit (PPE)", detail:"Fondation politique du Parti populaire européen.", xp:0.52,yp:0.38, risk:0, year:2007, theme:"general" },
+      { id:"cerre", label:"CERRE", budget:2.0, rank:9, model:"members", focus:"Régulation numérique, énergie", pol:"Modéré", detail:"Centre on Regulation in Europe. Modèle cotisations inspiré de Bruegel.", xp:0.48,yp:0.45, risk:0, year:2009, theme:"digital" },
+      { id:"tax_found", label:"Tax Foundation (EU)", budget:2.0, rank:10, model:"us_endowment", focus:"Fiscalité, libre marché", pol:"Conservateur économique", detail:"Financée par entreprises US et fortunes conservatrices. L'une des rares voix conservatrices historiques à Bruxelles.", xp:0.28,yp:0.15, risk:0, year:2009, theme:"fiscal" },
+      { id:"ieep", label:"IEEP", budget:1.5, rank:11, model:"mixed", focus:"Environnement, climat", pol:"Pro-régulation environnementale", detail:"Institute for European Environmental Policy. Montée en puissance avec le Green Deal.", xp:0.65,yp:0.72, risk:1, year:2002, theme:"climate" },
+      { id:"elf", label:"European Liberal Forum", budget:1.5, rank:12, model:"party", focus:"Libéralisme, droits individuels", pol:"Libéral (Renew)", detail:"Fondation liée à Renew Europe.", xp:0.42,yp:0.28, risk:0, year:2007, theme:"general" },
+      { id:"lisbon", label:"Lisbon Council", budget:1.5, rank:12, model:"mixed", focus:"Numérique, innovation", pol:"Pro-innovation", detail:"Spécialisé sur les questions numériques et d'innovation.", xp:0.42,yp:0.38, risk:0, year:2003, theme:"digital" },
+      { id:"reimagine", label:"Re-imagine Europa", budget:1.2, rank:13, model:"single_donor", focus:"Avenir de l'Europe", pol:"Pro-intégration", detail:"Principalement alimenté par la Bill & Melinda Gates Foundation.", xp:0.68,yp:0.58, risk:2, year:2018, theme:"general" },
+      { id:"cfg", label:"Centre for Future Generations", budget:1.2, rank:14, model:"single_donor", focus:"Générations futures, durabilité", pol:"Progressiste", detail:"Dépendant de deux fondations néerlandaises.", xp:0.62,yp:0.68, risk:2, year:2019, theme:"climate" },
+      { id:"big", label:"BIG", budget:1.0, rank:15, model:"members", focus:"Géopolitique, défense", pol:"Souverainiste européen", detail:"Brussels Institute for Geopolitics. Créé en 2023 par Luuk van Middelaar.", xp:0.58,yp:0.52, risk:0, year:2023, theme:"geopolitics" },
+      { id:"ices", label:"ICES", budget:0.5, rank:16, model:"single_donor", focus:"Relations Chine-Europe", pol:"Pro-dialogue avec Pékin", detail:"Institute for China-Europe Studies. Représente des positions chinoises à Bruxelles.", xp:0.38,yp:0.48, risk:1, year:2014, theme:"geopolitics" },
+    ];
+
+    const FUNDERS = [
+      { id:"osf", label:"Open Society (Soros)", type:"us_foundation", detail:"Investissements Europe passés de 209M à 83M€ (2022→2024). Reflux majeur.", trend:"down", amount:"83M€ (zone EU/Asie Centrale)" },
+      { id:"gates", label:"Gates Foundation", type:"us_foundation", detail:"L'un des principaux bailleurs. Tendance progressiste sur le climat et le social.", trend:"down", amount:"Dizaines de M€" },
+      { id:"breakthrough", label:"Breakthrough Energy", type:"us_foundation", detail:"Fermeture du bureau européen en 2025. Pro-technologies vertes.", trend:"down", amount:"Fermé" },
+      { id:"ecf", label:"European Climate Foundation", type:"us_foundation", detail:"Engagement progressiste, pro-action climatique.", trend:"stable", amount:"Plusieurs M€" },
+      { id:"google", label:"Google", type:"tech", detail:"Principal bailleur privé : ~1M€/an aux TT bruxellois. DSA, DMA, AI Act.", trend:"stable", amount:"~1M€/an" },
+      { id:"meta", label:"Meta", type:"tech", detail:"Enjeux : DSA, DMA, régulation des plateformes.", trend:"stable", amount:"Centaines de k€" },
+      { id:"microsoft", label:"Microsoft", type:"tech", detail:"Enjeux : Cloud Act, AI Act.", trend:"stable", amount:"Centaines de k€" },
+      { id:"apple", label:"Apple", type:"tech", detail:"Enjeux : DMA, interopérabilité.", trend:"stable", amount:"Centaines de k€" },
+      { id:"amazon", label:"Amazon", type:"tech", detail:"Enjeux : DSA, DMA, Cloud Act.", trend:"stable", amount:"Centaines de k€" },
+      { id:"cerv", label:"Programme CERV", type:"eu", detail:"279M€ (2026) / 299M€ (2027). Sous pression politique (PPE → Patriots). Réorientation en cours.", trend:"down", amount:"279-299M€/an" },
+      { id:"horizons", label:"Programme Horizons", type:"eu", detail:"Recherche fondamentale, projets pluriannuels.", trend:"stable", amount:"Multi-milliards" },
+      { id:"hungary", label:"État hongrois / MOL", type:"state", detail:"Principal animateur de la sphère eurosceptique. 6M€/an pour MCC seul.", trend:"up", amount:"~6M€/an" },
+      { id:"france", label:"France (MEAE, BdF, CDC)", type:"state", detail:"~1M€ dans les 20 TT les plus visibles. Moins systématique que l'Allemagne.", trend:"stable", amount:"~1M€" },
+      { id:"sweden", label:"Suède", type:"state", detail:"Finance surtout ECIPE (pro-déréglementation).", trend:"stable", amount:"Centaines de k€" },
+      { id:"netherlands", label:"Fondations néerlandaises", type:"state", detail:"Financent le Centre for Future Generations.", trend:"stable", amount:"~1M€" },
+      { id:"adenauer", label:"Konrad Adenauer Stiftung", type:"de_foundation", detail:"Fondation CDU. Relais d'influence structurant.", trend:"stable", amount:"Plusieurs M€" },
+      { id:"ebert", label:"Friedrich Ebert Stiftung", type:"de_foundation", detail:"Fondation SPD.", trend:"stable", amount:"Plusieurs M€" },
+      { id:"naumann", label:"Friedrich Naumann Stiftung", type:"de_foundation", detail:"Fondation FDP.", trend:"stable", amount:"Centaines de k€" },
+      { id:"boll", label:"Heinrich Böll Stiftung", type:"de_foundation", detail:"Fondation Verts.", trend:"stable", amount:"Centaines de k€" },
+      { id:"bertelsmann", label:"Bertelsmann Stiftung", type:"de_foundation", detail:"Fondation privée allemande.", trend:"stable", amount:"Plusieurs M€" },
+      { id:"mercator", label:"Mercator Stiftung", type:"de_foundation", detail:"Sujets climatiques et européens.", trend:"stable", amount:"Plusieurs M€" },
+      { id:"bosch", label:"Robert Bosch Stiftung", type:"de_foundation", detail:"Fondation privée allemande.", trend:"stable", amount:"Centaines de k€" },
+      { id:"edf_engie", label:"EDF / Engie / Total", type:"energy", detail:"Principaux énergéticiens FR. Intérêt : Green Deal, taxonomie.", trend:"stable", amount:"Centaines de k€" },
+      { id:"shell_exxon", label:"Shell / Exxon / ENI", type:"energy", detail:"Énergie, proportionnel à l'impact normatif UE.", trend:"stable", amount:"Centaines de k€" },
+      { id:"finance_sector", label:"BlackRock / Mastercard / Moody's", type:"finance", detail:"Secteur financier. Régulation bancaire, taxonomie.", trend:"stable", amount:"Centaines de k€" },
+      { id:"china_mission", label:"Mission de Chine / UE", type:"china", detail:"Dizaines de k€ à certains instituts. Niveau modeste mais croissant.", trend:"up", amount:"Dizaines de k€" },
+      { id:"huawei_shein", label:"Huawei / Shein", type:"china", detail:"Financent instituts numériques (Bruegel, CERRE, EPC, Lisbon Council).", trend:"up", amount:"Dizaines de k€" },
+    ];
+
+    const LINKS = [
+      {s:"google",t:"bruegel",w:3},{s:"meta",t:"bruegel",w:1},{s:"microsoft",t:"bruegel",w:1},{s:"france",t:"bruegel",w:2},{s:"huawei_shein",t:"bruegel",w:1},{s:"horizons",t:"bruegel",w:1},{s:"edf_engie",t:"bruegel",w:1},{s:"shell_exxon",t:"bruegel",w:1},{s:"finance_sector",t:"bruegel",w:1},
+      {s:"cerv",t:"ceps",w:3},{s:"horizons",t:"ceps",w:2},{s:"google",t:"ceps",w:1},{s:"bertelsmann",t:"ceps",w:1},{s:"edf_engie",t:"ceps",w:1},{s:"amazon",t:"ceps",w:1},{s:"finance_sector",t:"ceps",w:1},
+      {s:"cerv",t:"epc",w:2},{s:"horizons",t:"epc",w:2},{s:"china_mission",t:"epc",w:1},{s:"huawei_shein",t:"epc",w:1},{s:"google",t:"epc",w:1},{s:"osf",t:"epc",w:1},{s:"finance_sector",t:"epc",w:1},
+      {s:"hungary",t:"mcc",w:5},
+      {s:"china_mission",t:"friends",w:1},{s:"google",t:"friends",w:1},{s:"cerv",t:"friends",w:1},{s:"osf",t:"friends",w:1},{s:"gates",t:"friends",w:1},
+      {s:"osf",t:"carnegie",w:1},{s:"gates",t:"carnegie",w:1},
+      {s:"osf",t:"gmf",w:2},{s:"gates",t:"gmf",w:1},
+      {s:"cerv",t:"delors",w:3},{s:"france",t:"delors",w:2},{s:"ecf",t:"delors",w:1},
+      {s:"ebert",t:"feps",w:2},{s:"cerv",t:"feps",w:1},{s:"france",t:"feps",w:1},
+      {s:"sweden",t:"ecipe",w:4},
+      {s:"adenauer",t:"martens",w:2},{s:"cerv",t:"martens",w:1},
+      {s:"google",t:"cerre",w:2},{s:"huawei_shein",t:"cerre",w:1},{s:"meta",t:"cerre",w:1},{s:"apple",t:"cerre",w:1},
+      {s:"ecf",t:"ieep",w:2},{s:"horizons",t:"ieep",w:1},{s:"mercator",t:"ieep",w:1},{s:"boll",t:"ieep",w:1},
+      {s:"naumann",t:"elf",w:2},
+      {s:"google",t:"lisbon",w:2},{s:"huawei_shein",t:"lisbon",w:1},{s:"microsoft",t:"lisbon",w:1},
+      {s:"gates",t:"reimagine",w:4},{s:"breakthrough",t:"reimagine",w:1},
+      {s:"netherlands",t:"cfg",w:4},
+      {s:"france",t:"big",w:1},{s:"bosch",t:"big",w:1},
+      {s:"china_mission",t:"ices",w:3},
+    ];
+
+    const FUNDER_COLORS = {
+      us_foundation:"#6B9FD4", tech:"#9B72CF", eu:"#D4A843", state:"#4DB88A",
+      de_foundation:"#D46B4A", energy:"#D4943A", finance:"#6BB8C4", china:"#D44A4A",
+    };
+    const FUNDER_LABELS = {
+      us_foundation:"Fondations US", tech:"Big Tech US", eu:"Institutions UE", state:"États",
+      de_foundation:"Fondations DE", energy:"Énergie", finance:"Finance", china:"Acteurs chinois",
+    };
+    const RISK_LABELS = ["Stable","Légère pression","Vulnérable","Fragilisé"];
+    const RISK_COLORS = ["#4DB88A","#D4A843","#D4943A","#D44A4A"];
+    const MODEL_LABELS = { members:"Cotisations membres", eu_dependent:"Dépendant UE", single_donor:"Bailleur unique", mixed:"Diversifié", us_endowment:"Dotation US", party:"Fondation politique" };
+
+    /* ───────────────── STORY STEPS ───────────────── */
+    const STORY = [
+      { title:"L'écosystème bruxellois", text:"Une vingtaine de think tanks influents gravitent autour des institutions européennes, pesant collectivement plus de 60M€ de budgets annuels. Explorez les connexions entre producteurs d'idées et bailleurs de fonds.", highlight:[], filterType:null },
+      { title:"Le trio historique", text:"Bruegel (7,8M€), CEPS (6,2M€) et EPC (5,7M€) dominent le paysage. Fondés entre 1983 et 1996, ils incarnent trois modèles différents : cotisations membres, dépendance UE, et mix diversifié.", highlight:["bruegel","ceps","epc"], filterType:null },
+      { title:"La prédominance américaine", text:"Avec plus de 100M€ investis, les acteurs US sont les premiers bailleurs. Google est le principal bailleur privé (~1M€/an). Les fondations Gates et Soros ont historiquement orienté la recherche vers des positions progressistes et atlantistes.", highlight:["google","meta","microsoft","apple","amazon","osf","gates"], filterType:"tech" },
+      { title:"L'irruption eurosceptique", text:"Depuis 2023, MCC Brussels (6M€, 100% financement hongrois) s'est hissé au rang de 3e TT le mieux doté. Il anime un écosystème alternatif, critique des institutions, articulé avec des médias (The European Conservative) et des réseaux conservateurs.", highlight:["mcc","hungary"], filterType:null },
+      { title:"La fragilisation en cours", text:"Reflux des fondations US (OSF : 209→83M€), réorientation du programme CERV, retrait de Breakthrough Energy… Plusieurs TT historiques comme l'Institut Jacques Delors (17% CERV) se trouvent fragilisés. Ce vide ouvre un « marché de l'influence » à des acteurs moins transparents.", highlight:["delors","epc","cerv","osf","breakthrough","reimagine"], filterType:null },
+      { title:"L'ombre chinoise", text:"Présence encore modeste mais croissante : la Mission de Chine finance EPC et Friends of Europe ; Huawei et Shein financent les instituts numériques ; l'ICES représente les positions de Pékin. Paul Charon (IRSEM) souligne que la société civile est un vecteur privilégié d'influence.", highlight:["china_mission","huawei_shein","ices"], filterType:"china" },
+      { title:"Le sous-investissement français", text:"Avec ~1M€, la France est présente mais loin derrière l'Allemagne et ses fondations politiques (Adenauer, Ebert, Böll, Naumann) et privées (Bertelsmann, Mercator, Bosch). Le document recommande une approche plus stratégique.", highlight:["france","adenauer","ebert","naumann","boll","bertelsmann","mercator","bosch"], filterType:null },
+    ];
+
+    /* ───────────────── COMPONENT ───────────────── */
+    function ThinkTankUltimate() {
+      const svgRef = useRef(null);
+      const simRef = useRef(null);
+      const nodesRef = useRef(null);
+      const linksRef = useRef(null);
+      const [view, setView] = useState("network");
+      const [hovered, setHovered] = useState(null);
+      const [pinned, setPinned] = useState(null);
+      const [filterType, setFilterType] = useState(null);
+      const [storyIdx, setStoryIdx] = useState(-1);
+      const [search, setSearch] = useState("");
+      const [dims, setDims] = useState({ w:960, h:680 });
+      const [showRisk, setShowRisk] = useState(false);
+
+      const allNodes = useMemo(() => [
+        ...THINK_TANKS.map(d=>({...d, nodeType:"tt"})),
+        ...FUNDERS.map(d=>({...d, nodeType:"funder"})),
+      ],[]);
+
+      const allLinks = useMemo(()=> LINKS.map(d=>({source:d.s, target:d.t, weight:d.w})),[]);
+
+      const active = pinned || hovered;
+
+      useEffect(()=>{
+        const h=()=>{ setDims({w:Math.min(window.innerWidth-20,1200),h:Math.min(window.innerHeight-60,720)}); };
+        h(); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h);
+      },[]);
+
+      /* ─── NETWORK VIEW ─── */
+      useEffect(()=>{
+        if(view!=="network"||!svgRef.current) return;
+        const {w,h}=dims;
+        const svg=d3.select(svgRef.current); svg.selectAll("*").remove();
+
+        const defs=svg.append("defs");
+        const glow=defs.append("filter").attr("id","glow").attr("x","-50%").attr("y","-50%").attr("width","200%").attr("height","200%");
+        glow.append("feGaussianBlur").attr("stdDeviation","4").attr("result","b");
+        glow.append("feMerge").selectAll("feMergeNode").data(["b","SourceGraphic"]).join("feMergeNode").attr("in",d=>d);
+
+        Object.entries(FUNDER_COLORS).forEach(([k,c])=>{
+          defs.append("marker").attr("id","arrow-"+k).attr("viewBox","0 0 10 6").attr("refX",10).attr("refY",3)
+            .attr("markerWidth",8).attr("markerHeight",5).attr("orient","auto")
+            .append("path").attr("d","M0,0 L10,3 L0,6 Z").attr("fill",c).attr("opacity",0.5);
+        });
+
+        const nodes=allNodes.map(d=>({...d}));
+        const links=allLinks.map(d=>({...d}));
+
+        const g=svg.append("g");
+        svg.call(d3.zoom().scaleExtent([0.25,4]).on("zoom",e=>g.attr("transform",e.transform)));
+
+        const sim=d3.forceSimulation(nodes)
+          .force("link",d3.forceLink(links).id(d=>d.id).distance(d=>100-d.weight*8).strength(d=>0.12+d.weight*0.035))
+          .force("charge",d3.forceManyBody().strength(d=>d.nodeType==="tt"?-320:-180))
+          .force("center",d3.forceCenter(w/2,h/2))
+          .force("collision",d3.forceCollide().radius(d=>getR(d)+10))
+          .force("x",d3.forceX(w/2).strength(0.035))
+          .force("y",d3.forceY(h/2).strength(0.035));
+        simRef.current=sim;
+
+        const linkEl=g.append("g").selectAll("line").data(links).join("line")
+          .attr("stroke","#444").attr("stroke-opacity",d=>0.12+d.weight*0.08)
+          .attr("stroke-width",d=>0.5+d.weight*0.5);
+
+        const particleG=g.append("g");
+        const particles=[];
+        links.forEach(l=>{
+          for(let i=0;i<l.weight;i++){
+            particles.push({link:l, offset:Math.random(), speed:0.002+Math.random()*0.002});
+          }
+        });
+        const particleEls=particleG.selectAll("circle").data(particles).join("circle")
+          .attr("r",1.2).attr("fill",d=>{
+            const sn=nodes.find(n=>n.id===(typeof d.link.source==="object"?d.link.source.id:d.link.source));
+            return sn?.type?FUNDER_COLORS[sn.type]||"#666":"#666";
+          }).attr("opacity",0.6);
+
+        const nodeEl=g.append("g").selectAll("g").data(nodes).join("g").attr("cursor","pointer")
+          .call(d3.drag()
+            .on("start",(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
+            .on("drag",(e,d)=>{d.fx=e.x;d.fy=e.y;})
+            .on("end",(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;})
+          );
+
+        nodeEl.filter(d=>d.nodeType==="tt"&&d.risk>0).append("circle")
+          .attr("r",d=>getR(d)+5)
+          .attr("fill","none").attr("stroke",d=>RISK_COLORS[d.risk]).attr("stroke-width",1.5)
+          .attr("stroke-dasharray","4,3").attr("opacity",0).attr("class","risk-ring");
+
+        nodeEl.append("circle").attr("r",d=>getR(d))
+          .attr("fill",d=>d.nodeType==="tt"?"#E8DCC8":FUNDER_COLORS[d.type]||"#888")
+          .attr("stroke","#0e0e1a").attr("stroke-width",1.2).attr("opacity",0.92);
+
+        nodeEl.filter(d=>d.nodeType==="tt"&&d.budget>=2).append("text")
+          .text(d=>d.budget+"M").attr("text-anchor","middle").attr("dy","0.35em")
+          .attr("fill","#1a1a2e").attr("font-size","7px").attr("font-weight","700")
+          .attr("font-family","'DM Sans',sans-serif").attr("pointer-events","none");
+
+        nodeEl.filter(d=>d.nodeType==="funder"&&d.trend).append("text")
+          .text(d=>d.trend==="up"?"▲":d.trend==="down"?"▼":"")
+          .attr("text-anchor","middle").attr("dy",-12)
+          .attr("fill",d=>d.trend==="up"?"#D44A4A":d.trend==="down"?"#6B9FD4":"#888")
+          .attr("font-size","8px").attr("pointer-events","none");
+
+        nodeEl.append("text").text(d=>d.label)
+          .attr("dy",d=>getR(d)+13).attr("text-anchor","middle")
+          .attr("fill","#a89e92").attr("font-size",d=>d.nodeType==="tt"?"9px":"7.5px")
+          .attr("font-weight",d=>d.nodeType==="tt"?"600":"400")
+          .attr("font-family","'DM Sans',sans-serif").attr("pointer-events","none").attr("opacity",0.85);
+
+        nodesRef.current={nodeEl,nodes};
+        linksRef.current={linkEl,links,particleEls,particles};
+
+        nodeEl.on("mouseenter",(e,d)=>setHovered(d)).on("mouseleave",()=>setHovered(null))
+          .on("click",(e,d)=>{e.stopPropagation();setPinned(p=>p?.id===d.id?null:d);});
+        svg.on("click",()=>setPinned(null));
+
+        sim.on("tick",()=>{
+          linkEl.attr("x1",d=>d.source.x).attr("y1",d=>d.source.y).attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+          nodeEl.attr("transform",d=>`translate(${d.x},${d.y})`);
+          particleEls.each(function(p){
+            p.offset=(p.offset+p.speed)%1;
+            const s=p.link.source, t=p.link.target;
+            const x=s.x+(t.x-s.x)*p.offset, y=s.y+(t.y-s.y)*p.offset;
+            d3.select(this).attr("cx",x).attr("cy",y);
+          });
+        });
+
+        setTimeout(()=>svg.transition().duration(800).call(d3.zoom().scaleExtent([0.25,4]).on("zoom",e=>g.attr("transform",e.transform)).transform,d3.zoomIdentity.translate(w*0.05,h*0.05).scale(0.88)),1200);
+
+        return()=>sim.stop();
+      },[view,dims,allNodes,allLinks]);
+
+      /* ─── POLITICAL MAP VIEW ─── */
+      useEffect(()=>{
+        if(view!=="political"||!svgRef.current) return;
+        const {w,h}=dims;
+        const svg=d3.select(svgRef.current); svg.selectAll("*").remove();
+        const pad=60;
+
+        const g=svg.append("g");
+        svg.call(d3.zoom().scaleExtent([0.5,3]).on("zoom",e=>g.attr("transform",e.transform)));
+
+        g.append("rect").attr("x",pad).attr("y",pad).attr("width",w-2*pad).attr("height",h-2*pad)
+          .attr("fill","rgba(232,220,200,0.02)").attr("stroke","rgba(232,220,200,0.06)").attr("rx",4);
+
+        g.append("text").attr("x",w/2).attr("y",h-15).text("Eurosceptique ← → Fédéraliste")
+          .attr("text-anchor","middle").attr("fill","#8a8278").attr("font-size","11px").attr("font-family","'DM Sans',sans-serif");
+        g.append("text").attr("x",15).attr("y",h/2).text("Pro-libéralisation ← → Pro-régulation")
+          .attr("text-anchor","middle").attr("fill","#8a8278").attr("font-size","11px")
+          .attr("font-family","'DM Sans',sans-serif").attr("transform",`rotate(-90,15,${h/2})`);
+
+        const ql=[{x:pad+30,y:pad+20,t:"Eurosceptique\nPro-libéralisation"},{x:w-pad-30,y:pad+20,t:"Fédéraliste\nPro-libéralisation"},
+          {x:pad+30,y:h-pad-10,t:"Eurosceptique\nPro-régulation"},{x:w-pad-30,y:h-pad-10,t:"Fédéraliste\nPro-régulation"}];
+        ql.forEach(q=>{
+          q.t.split("\n").forEach((line,i)=>{
+            g.append("text").attr("x",q.x).attr("y",q.y+i*12).text(line)
+              .attr("text-anchor",q.x<w/2?"start":"end").attr("fill","rgba(232,220,200,0.12)")
+              .attr("font-size","9px").attr("font-family","'DM Sans',sans-serif");
+          });
+        });
+
+        g.append("line").attr("x1",w/2).attr("y1",pad).attr("x2",w/2).attr("y2",h-pad).attr("stroke","rgba(232,220,200,0.06)").attr("stroke-dasharray","4,4");
+        g.append("line").attr("x1",pad).attr("y1",h/2).attr("x2",w-pad).attr("y2",h/2).attr("stroke","rgba(232,220,200,0.06)").attr("stroke-dasharray","4,4");
+
+        const xScale=d3.scaleLinear().domain([0,1]).range([pad+20,w-pad-20]);
+        const yScale=d3.scaleLinear().domain([0,1]).range([pad+20,h-pad-20]);
+
+        const ttNodes=THINK_TANKS.filter(d=>d.xp!==undefined);
+        const nodeEl=g.selectAll("g.tt").data(ttNodes).join("g").attr("class","tt")
+          .attr("transform",d=>`translate(${xScale(d.xp)},${yScale(d.yp)})`).attr("cursor","pointer");
+
+        nodeEl.append("circle").attr("r",d=>Math.max(6,d.budget*3.2))
+          .attr("fill",d=>showRisk?RISK_COLORS[d.risk]:"#E8DCC8")
+          .attr("stroke","#0e0e1a").attr("stroke-width",1).attr("opacity",0.85);
+
+        nodeEl.append("text").text(d=>d.label)
+          .attr("dy",d=>Math.max(6,d.budget*3.2)+12).attr("text-anchor","middle")
+          .attr("fill","#a89e92").attr("font-size","8.5px").attr("font-weight","600")
+          .attr("font-family","'DM Sans',sans-serif").attr("pointer-events","none");
+
+        nodeEl.on("mouseenter",(e,d)=>setHovered({...d,nodeType:"tt"})).on("mouseleave",()=>setHovered(null))
+          .on("click",(e,d)=>{e.stopPropagation();setPinned(p=>p?.id===d.id?null:{...d,nodeType:"tt"});});
+        svg.on("click",()=>setPinned(null));
+      },[view,dims,showRisk]);
+
+      /* ─── FUNDING FLOWS VIEW ─── */
+      useEffect(()=>{
+        if(view!=="funding"||!svgRef.current) return;
+        const {w,h}=dims;
+        const svg=d3.select(svgRef.current); svg.selectAll("*").remove();
+        const g=svg.append("g");
+        svg.call(d3.zoom().scaleExtent([0.5,3]).on("zoom",e=>g.attr("transform",e.transform)));
+
+        const types=["us_foundation","tech","eu","state","de_foundation","energy","finance","china"];
+        const fundersByType=types.map(t=>FUNDERS.filter(f=>f.type===t));
+        const flatFunders=fundersByType.flat();
+        const sortedTT=[...THINK_TANKS].sort((a,b)=>b.budget-a.budget);
+
+        const leftX=120, rightX=w-160, midY=40;
+        const fSpacing=Math.min(22,(h-80)/flatFunders.length);
+        const tSpacing=Math.min(28,(h-80)/sortedTT.length);
+
+        const funderPos={};
+        let fy=midY;
+        fundersByType.forEach((group,gi)=>{
+          if(gi>0) fy+=6;
+          group.forEach(f=>{
+            funderPos[f.id]={x:leftX,y:fy};
+            fy+=fSpacing;
+          });
+        });
+
+        const ttPos={};
+        sortedTT.forEach((tt,i)=>{
+          ttPos[tt.id]={x:rightX,y:midY+i*tSpacing};
+        });
+
+        LINKS.forEach(l=>{
+          const sp=funderPos[l.s], tp=ttPos[l.t];
+          if(!sp||!tp) return;
+          const sn=FUNDERS.find(f=>f.id===l.s);
+          g.append("path")
+            .attr("d",`M${sp.x},${sp.y} C${(sp.x+tp.x)/2},${sp.y} ${(sp.x+tp.x)/2},${tp.y} ${tp.x},${tp.y}`)
+            .attr("fill","none")
+            .attr("stroke",FUNDER_COLORS[sn?.type]||"#444")
+            .attr("stroke-opacity",0.08+l.w*0.08)
+            .attr("stroke-width",0.5+l.w*0.8)
+            .attr("class","flow-link")
+            .attr("data-source",l.s).attr("data-target",l.t);
+        });
+
+        let fy2=midY;
+        fundersByType.forEach((group,gi)=>{
+          if(gi>0){
+            fy2+=3;
+            g.append("text").attr("x",leftX-8).attr("y",fy2-2)
+              .text(FUNDER_LABELS[types[gi]]).attr("text-anchor","end")
+              .attr("fill",FUNDER_COLORS[types[gi]]).attr("font-size","8px").attr("font-weight","700")
+              .attr("font-family","'DM Sans',sans-serif").attr("opacity",0.6);
+            fy2+=3;
+          }
+          group.forEach(f=>{
+            const el=g.append("g").attr("cursor","pointer")
+              .on("mouseenter",()=>setHovered({...f,nodeType:"funder"}))
+              .on("mouseleave",()=>setHovered(null));
+            el.append("circle").attr("cx",leftX).attr("cy",fy2).attr("r",5)
+              .attr("fill",FUNDER_COLORS[f.type]).attr("opacity",0.8);
+            el.append("text").attr("x",leftX-10).attr("y",fy2+3)
+              .text(f.label).attr("text-anchor","end").attr("fill","#a89e92")
+              .attr("font-size","8px").attr("font-family","'DM Sans',sans-serif");
+            if(f.trend==="down") el.append("text").attr("x",leftX+10).attr("y",fy2+3).text("▼").attr("fill","#D44A4A").attr("font-size","7px");
+            if(f.trend==="up") el.append("text").attr("x",leftX+10).attr("y",fy2+3).text("▲").attr("fill","#4DB88A").attr("font-size","7px");
+            fy2+=fSpacing;
+          });
+        });
+
+        sortedTT.forEach((tt,i)=>{
+          const y=midY+i*tSpacing;
+          const el=g.append("g").attr("cursor","pointer")
+            .on("mouseenter",()=>setHovered({...tt,nodeType:"tt"}))
+            .on("mouseleave",()=>setHovered(null));
+          el.append("circle").attr("cx",rightX).attr("cy",y).attr("r",Math.max(4,tt.budget*2.2))
+            .attr("fill",showRisk?RISK_COLORS[tt.risk]:"#E8DCC8").attr("opacity",0.85).attr("stroke","#0e0e1a").attr("stroke-width",0.8);
+          el.append("text").attr("x",rightX+Math.max(6,tt.budget*2.2)+6).attr("y",y+3)
+            .text(`${tt.label} (${tt.budget}M€)`).attr("fill","#c8c0b4")
+            .attr("font-size","9px").attr("font-weight","600").attr("font-family","'DM Sans',sans-serif");
+        });
+
+      },[view,dims,showRisk]);
+
+      /* ─── Highlight logic ─── */
+      useEffect(()=>{
+        if(view!=="network"||!nodesRef.current) return;
+        const {nodeEl,nodes}=nodesRef.current;
+        const {linkEl,links}=linksRef.current;
+        const activeId=active?.id;
+        const storyHL=storyIdx>=0?STORY[storyIdx].highlight:[];
+        const connected=new Set();
+        if(activeId){
+          connected.add(activeId);
+          links.forEach(l=>{
+            const si=typeof l.source==="object"?l.source.id:l.source;
+            const ti=typeof l.target==="object"?l.target.id:l.target;
+            if(si===activeId)connected.add(ti);
+            if(ti===activeId)connected.add(si);
+          });
+        }
+
+        nodeEl.select("circle:not(.risk-ring)").transition().duration(200)
+          .attr("opacity",d=>{
+            if(storyHL.length&&!storyHL.includes(d.id)) return 0.08;
+            if(filterType&&d.nodeType==="funder"&&d.type!==filterType) return 0.08;
+            if(activeId&&!connected.has(d.id)) return 0.08;
+            if(search&&!d.label.toLowerCase().includes(search.toLowerCase())) return 0.15;
+            return 0.92;
+          });
+
+        nodeEl.selectAll("text").transition().duration(200)
+          .attr("opacity",d=>{
+            if(storyHL.length&&!storyHL.includes(d.id)) return 0.05;
+            if(filterType&&d.nodeType==="funder"&&d.type!==filterType) return 0.05;
+            if(activeId&&!connected.has(d.id)) return 0.05;
+            if(search&&!d.label.toLowerCase().includes(search.toLowerCase())) return 0.08;
+            return 0.85;
+          });
+
+        nodeEl.selectAll(".risk-ring").transition().duration(300).attr("opacity",showRisk?0.7:0);
+
+        linkEl.transition().duration(200)
+          .attr("stroke-opacity",d=>{
+            const si=typeof d.source==="object"?d.source.id:d.source;
+            const ti=typeof d.target==="object"?d.target.id:d.target;
+            if(storyHL.length&&!storyHL.includes(si)&&!storyHL.includes(ti)) return 0.01;
+            if(activeId){
+              if(si===activeId||ti===activeId) return 0.5+d.weight*0.08;
+              return 0.01;
+            }
+            return 0.12+d.weight*0.08;
+          })
+          .attr("stroke",d=>{
+            const si=typeof d.source==="object"?d.source.id:d.source;
+            const ti=typeof d.target==="object"?d.target.id:d.target;
+            if(activeId&&(si===activeId||ti===activeId)){
+              const oId=si===activeId?ti:si;
+              const oNode=nodes.find(n=>n.id===oId);
+              return oNode?.type?FUNDER_COLORS[oNode.type]||"#aaa":"#E8DCC8";
+            }
+            return "#444";
+          });
+
+        if(linksRef.current.particleEls){
+          linksRef.current.particleEls.transition().duration(200).attr("opacity",d=>{
+            const si=typeof d.link.source==="object"?d.link.source.id:d.link.source;
+            const ti=typeof d.link.target==="object"?d.link.target.id:d.link.target;
+            if(storyHL.length&&!storyHL.includes(si)&&!storyHL.includes(ti)) return 0;
+            if(activeId&&si!==activeId&&ti!==activeId) return 0;
+            return 0.6;
+          });
+        }
+      },[active,filterType,search,storyIdx,showRisk,view]);
+
+      useEffect(()=>{
+        if(view!=="funding"||!svgRef.current) return;
+        const svg=d3.select(svgRef.current);
+        const activeId=active?.id;
+        svg.selectAll(".flow-link").transition().duration(200)
+          .attr("stroke-opacity",function(){
+            if(!activeId) return parseFloat(d3.select(this).attr("stroke-opacity"));
+            const s=d3.select(this).attr("data-source"), t=d3.select(this).attr("data-target");
+            return (s===activeId||t===activeId)?0.6:0.02;
+          });
+      },[active,view]);
+
+      useEffect(()=>{
+        if(storyIdx>=0&&STORY[storyIdx].filterType) setFilterType(STORY[storyIdx].filterType);
+        else if(storyIdx>=0) setFilterType(null);
+      },[storyIdx]);
+
+      function getR(d){ return d.nodeType==="tt"?Math.max(7,(d.budget||1)*3.5):6; }
+
+      const connectedFunders=useMemo(()=>{
+        if(!active||active.nodeType!=="tt") return [];
+        return LINKS.filter(l=>l.t===active.id).map(l=>{
+          const f=FUNDERS.find(x=>x.id===l.s);
+          return f?{...f,weight:l.w}:null;
+        }).filter(Boolean).sort((a,b)=>b.weight-a.weight);
+      },[active]);
+
+      const connectedTTs=useMemo(()=>{
+        if(!active||active.nodeType!=="funder") return [];
+        return LINKS.filter(l=>l.s===active.id).map(l=>{
+          const tt=THINK_TANKS.find(x=>x.id===l.t);
+          return tt?{...tt,weight:l.w}:null;
+        }).filter(Boolean).sort((a,b)=>b.weight-a.weight);
+      },[active]);
+
+      return (
+        <div style={{background:"#0e0e1a",minHeight:"100vh",fontFamily:"'DM Sans',sans-serif",color:"#c8c0b4",position:"relative",overflow:"hidden"}}>
+
+          {/* ─── HEADER ─── */}
+          <div style={{padding:"14px 24px 0",display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:8,borderBottom:"1px solid rgba(232,220,200,0.06)",paddingBottom:10}}>
+            <div>
+              <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"21px",fontWeight:700,color:"#e8dcc8",margin:0,letterSpacing:"0.2px"}}>
+                L'Écosystème des Think Tanks à Bruxelles
+              </h1>
+              <p style={{fontSize:"10px",color:"#6a6258",margin:"2px 0 0",letterSpacing:"1.5px",textTransform:"uppercase",fontWeight:300}}>
+                Cartographie des dynamiques de financement et d'influence
+              </p>
+            </div>
+            <div style={{display:"flex",gap:4,alignItems:"center"}}>
+              <div style={{position:"relative"}}>
+                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher…"
+                  style={{background:"rgba(232,220,200,0.04)",border:"1px solid rgba(232,220,200,0.1)",borderRadius:16,padding:"4px 12px 4px 28px",
+                    color:"#c8c0b4",fontSize:"10.5px",width:140,outline:"none",fontFamily:"'DM Sans',sans-serif"}} />
+                <span style={{position:"absolute",left:10,top:5,fontSize:"11px",opacity:0.4}}>⌕</span>
+              </div>
+              {["network","political","funding"].map(v=>(
+                <button key={v} onClick={()=>{setView(v);setStoryIdx(-1);setPinned(null);}}
+                  style={{background:view===v?"rgba(212,168,67,0.15)":"rgba(232,220,200,0.04)",
+                    border:`1px solid ${view===v?"rgba(212,168,67,0.3)":"rgba(232,220,200,0.08)"}`,
+                    color:view===v?"#D4A843":"#8a8278",borderRadius:16,padding:"4px 11px",fontSize:"10px",
+                    cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s"}}>
+                  {v==="network"?"◉ Réseau":v==="political"?"◈ Carte politique":"≡ Flux"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ─── FILTERS ─── */}
+          <div style={{padding:"6px 24px",display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+            <button onClick={()=>setFilterType(null)}
+              style={{background:!filterType?"rgba(232,220,200,0.12)":"transparent",border:`1px solid ${!filterType?"rgba(232,220,200,0.2)":"rgba(232,220,200,0.06)"}`,
+                color:!filterType?"#e8dcc8":"#6a6258",borderRadius:14,padding:"3px 10px",fontSize:"9.5px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+              Tous
+            </button>
+            {Object.entries(FUNDER_LABELS).map(([k,label])=>(
+              <button key={k} onClick={()=>setFilterType(f=>f===k?null:k)}
+                style={{background:filterType===k?FUNDER_COLORS[k]+"18":"transparent",
+                  border:`1px solid ${filterType===k?FUNDER_COLORS[k]+"44":"rgba(232,220,200,0.06)"}`,
+                  color:filterType===k?FUNDER_COLORS[k]:"#6a6258",borderRadius:14,padding:"3px 10px",fontSize:"9.5px",
+                  cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontFamily:"'DM Sans',sans-serif"}}>
+                <span style={{width:6,height:6,borderRadius:"50%",background:FUNDER_COLORS[k],opacity:filterType===k?1:0.4}}/>
+                {label}
+              </button>
+            ))}
+            <span style={{width:1,height:14,background:"rgba(232,220,200,0.08)",margin:"0 4px"}}/>
+            <button onClick={()=>setShowRisk(r=>!r)}
+              style={{background:showRisk?"rgba(212,74,74,0.12)":"transparent",
+                border:`1px solid ${showRisk?"rgba(212,74,74,0.3)":"rgba(232,220,200,0.06)"}`,
+                color:showRisk?"#D44A4A":"#6a6258",borderRadius:14,padding:"3px 10px",fontSize:"9.5px",
+                cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+              ⚠ Risque
+            </button>
+            <button onClick={()=>setStoryIdx(i=>i<0?0:-1)}
+              style={{background:storyIdx>=0?"rgba(212,168,67,0.15)":"transparent",
+                border:`1px solid ${storyIdx>=0?"rgba(212,168,67,0.3)":"rgba(232,220,200,0.06)"}`,
+                color:storyIdx>=0?"#D4A843":"#6a6258",borderRadius:14,padding:"3px 10px",fontSize:"9.5px",
+                cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+              ▶ Visite guidée
+            </button>
+          </div>
+
+          {/* ─── RISK LEGEND ─── */}
+          {showRisk && (
+            <div style={{padding:"0 24px 4px",display:"flex",gap:10,alignItems:"center"}}>
+              {RISK_LABELS.map((l,i)=>(
+                <span key={i} style={{display:"flex",alignItems:"center",gap:4,fontSize:"9px",color:RISK_COLORS[i]}}>
+                  <span style={{width:8,height:8,borderRadius:"50%",background:RISK_COLORS[i],opacity:0.7}}/>{l}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* ─── STORY OVERLAY ─── */}
+          {storyIdx>=0 && (
+            <div style={{position:"absolute",bottom:50,left:"50%",transform:"translateX(-50%)",zIndex:30,
+              background:"rgba(14,14,26,0.95)",border:"1px solid rgba(212,168,67,0.2)",borderRadius:10,
+              padding:"14px 20px",maxWidth:500,backdropFilter:"blur(12px)",
+              animation:"slideUp 0.3s ease"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                <span style={{fontSize:"9px",color:"#D4A843",letterSpacing:"1.2px",textTransform:"uppercase",fontWeight:600}}>
+                  {storyIdx+1}/{STORY.length}
+                </span>
+                <button onClick={()=>setStoryIdx(-1)} style={{background:"none",border:"none",color:"#6a6258",cursor:"pointer",fontSize:"14px"}}>✕</button>
+              </div>
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"16px",color:"#e8dcc8",margin:"0 0 6px",fontWeight:700}}>
+                {STORY[storyIdx].title}
+              </h3>
+              <p style={{fontSize:"11.5px",lineHeight:1.6,color:"#a89e92",margin:"0 0 10px"}}>
+                {STORY[storyIdx].text}
+              </p>
+              <div style={{display:"flex",gap:6,justifyContent:"space-between"}}>
+                <button onClick={()=>setStoryIdx(i=>Math.max(0,i-1))} disabled={storyIdx===0}
+                  style={{background:"rgba(232,220,200,0.06)",border:"1px solid rgba(232,220,200,0.1)",borderRadius:14,
+                    padding:"4px 14px",color:storyIdx===0?"#3a3630":"#c8c0b4",fontSize:"10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                  ← Précédent
+                </button>
+                <div style={{display:"flex",gap:3,alignItems:"center"}}>
+                  {STORY.map((_,i)=>(
+                    <span key={i} onClick={()=>setStoryIdx(i)} style={{width:6,height:6,borderRadius:"50%",
+                      background:i===storyIdx?"#D4A843":"rgba(232,220,200,0.15)",cursor:"pointer",transition:"all 0.2s"}}/>
+                  ))}
+                </div>
+                <button onClick={()=>setStoryIdx(i=>i<STORY.length-1?i+1:-1)}
+                  style={{background:"rgba(212,168,67,0.1)",border:"1px solid rgba(212,168,67,0.25)",borderRadius:14,
+                    padding:"4px 14px",color:"#D4A843",fontSize:"10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                  {storyIdx===STORY.length-1?"Terminer ✓":"Suivant →"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── SVG ─── */}
+          <svg ref={svgRef} width={dims.w} height={dims.h} style={{display:"block",margin:"0 auto"}}/>
+
+          {/* ─── DETAIL PANEL ─── */}
+          {active && (
+            <div style={{position:"absolute",top:100,right:16,width:270,background:"rgba(14,14,26,0.96)",
+              border:"1px solid rgba(232,220,200,0.1)",borderRadius:8,padding:"14px",
+              backdropFilter:"blur(14px)",zIndex:20,animation:"fadeIn 0.2s ease",maxHeight:"calc(100vh - 140px)",overflowY:"auto"}}>
+
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                <span style={{width:8,height:8,borderRadius:"50%",
+                  background:active.nodeType==="tt"?"#E8DCC8":FUNDER_COLORS[active.type]||"#888"}}/>
+                <span style={{fontSize:"8px",textTransform:"uppercase",letterSpacing:"1px",fontWeight:600,
+                  color:active.nodeType==="tt"?"#E8DCC8":FUNDER_COLORS[active.type]||"#888"}}>
+                  {active.nodeType==="tt"?"Think Tank":FUNDER_LABELS[active.type]||""}
+                </span>
+                {active.risk>0 && active.nodeType==="tt" && (
+                  <span style={{marginLeft:"auto",fontSize:"8px",color:RISK_COLORS[active.risk],
+                    background:RISK_COLORS[active.risk]+"18",padding:"1px 6px",borderRadius:8}}>
+                    {RISK_LABELS[active.risk]}
+                  </span>
+                )}
+              </div>
+
+              <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"17px",fontWeight:700,color:"#e8dcc8",margin:"0 0 8px"}}>
+                {active.label}
+              </h3>
+
+              {active.nodeType==="tt" && (
+                <div style={{display:"flex",gap:14,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(232,220,200,0.06)"}}>
+                  <div>
+                    <div style={{fontSize:"8px",color:"#6a6258",textTransform:"uppercase",letterSpacing:"0.8px"}}>Budget</div>
+                    <div style={{fontSize:"18px",fontWeight:700,color:"#D4A843"}}>{active.budget}M€</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:"8px",color:"#6a6258",textTransform:"uppercase",letterSpacing:"0.8px"}}>Rang</div>
+                    <div style={{fontSize:"18px",fontWeight:700,color:"#e8dcc8"}}>#{active.rank}</div>
+                  </div>
+                  {active.year && (
+                    <div>
+                      <div style={{fontSize:"8px",color:"#6a6258",textTransform:"uppercase",letterSpacing:"0.8px"}}>Fondé</div>
+                      <div style={{fontSize:"18px",fontWeight:700,color:"#a89e92"}}>{active.year}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {active.nodeType==="funder" && active.amount && (
+                <div style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(232,220,200,0.06)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div>
+                      <div style={{fontSize:"8px",color:"#6a6258",textTransform:"uppercase",letterSpacing:"0.8px"}}>Ordre de grandeur</div>
+                      <div style={{fontSize:"15px",fontWeight:700,color:"#D4A843"}}>{active.amount}</div>
+                    </div>
+                    {active.trend && (
+                      <span style={{marginLeft:"auto",fontSize:"18px",
+                        color:active.trend==="up"?"#4DB88A":active.trend==="down"?"#D44A4A":"#6a6258"}}>
+                        {active.trend==="up"?"↑":active.trend==="down"?"↓":"→"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {active.model && <Field label="Modèle" value={MODEL_LABELS[active.model]||active.model}/>}
+              {active.focus && <Field label="Focus" value={active.focus}/>}
+              {active.pol && <Field label="Positionnement" value={active.pol}/>}
+
+              <p style={{fontSize:"11px",color:"#8a8278",lineHeight:1.55,margin:"8px 0",fontStyle:"italic"}}>
+                {active.detail}
+              </p>
+
+              {connectedFunders.length>0 && (
+                <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid rgba(232,220,200,0.06)"}}>
+                  <div style={{fontSize:"8px",color:"#6a6258",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:5}}>
+                    Sources de financement
+                  </div>
+                  {connectedFunders.map(f=>(
+                    <div key={f.id} style={{display:"flex",alignItems:"center",gap:5,marginBottom:3,cursor:"pointer",
+                      padding:"2px 4px",borderRadius:4,transition:"background 0.15s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(232,220,200,0.04)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{width:5,height:5,borderRadius:"50%",background:FUNDER_COLORS[f.type]||"#888"}}/>
+                      <span style={{fontSize:"10px",color:"#c8c0b4"}}>{f.label}</span>
+                      <span style={{marginLeft:"auto",fontSize:"8px",color:FUNDER_COLORS[f.type]||"#888",letterSpacing:1}}>
+                        {"●".repeat(f.weight)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {connectedTTs.length>0 && (
+                <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid rgba(232,220,200,0.06)"}}>
+                  <div style={{fontSize:"8px",color:"#6a6258",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:5}}>
+                    Think tanks financés
+                  </div>
+                  {connectedTTs.map(tt=>(
+                    <div key={tt.id} style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}>
+                      <span style={{width:5,height:5,borderRadius:"50%",background:"#E8DCC8"}}/>
+                      <span style={{fontSize:"10px",color:"#c8c0b4"}}>{tt.label}</span>
+                      <span style={{marginLeft:"auto",fontSize:"9px",color:"#D4A843"}}>{tt.budget}M€</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── KEY FIGURES ─── */}
+          {!active && storyIdx<0 && (
+            <div style={{position:"absolute",top:100,right:16,width:220,zIndex:10}}>
+              <div style={{background:"rgba(14,14,26,0.9)",border:"1px solid rgba(232,220,200,0.06)",borderRadius:8,padding:"12px"}}>
+                <div style={{fontSize:"8px",textTransform:"uppercase",letterSpacing:"1.2px",color:"#D4A843",fontWeight:600,marginBottom:8}}>
+                  Chiffres clés
+                </div>
+                {[
+                  ["100M€+","Investissement US total"],
+                  ["⅓","Part US du financement"],
+                  ["~1M€/an","Google, 1er bailleur privé"],
+                  ["6M€","MCC, 100% hongrois"],
+                  ["209→83M€","Chute OSF (2022→24)"],
+                  ["~1M€","France, sous-investie"],
+                ].map(([v,d],i)=>(
+                  <div key={i} style={{marginBottom:5,display:"flex",gap:7,alignItems:"baseline"}}>
+                    <span style={{fontSize:"12px",fontWeight:700,color:"#e8dcc8",minWidth:58,whiteSpace:"nowrap"}}>{v}</span>
+                    <span style={{fontSize:"9.5px",color:"#6a6258",lineHeight:1.3}}>{d}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ─── FOOTER ─── */}
+          <div style={{position:"absolute",bottom:8,left:"50%",transform:"translateX(-50%)",fontSize:"9px",
+            color:"#3a3630",letterSpacing:"1px",textTransform:"uppercase",textAlign:"center",zIndex:5}}>
+            {view==="network"?"Survoler · Cliquer pour fixer · Glisser · Molette pour zoomer":
+             view==="political"?"Position estimée sur base des publications · Taille = budget":
+             "Épaisseur = intensité estimée du financement"}
+          </div>
+        </div>
+      );
+    }
+
+    function Field({label,value}){
+      return (
+        <div style={{marginBottom:6}}>
+          <div style={{fontSize:"8px",color:"#6a6258",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:1}}>{label}</div>
+          <div style={{fontSize:"11px",color:"#c8c0b4"}}>{value}</div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<ThinkTankUltimate />);
+  </script>
+</body>
+</html>
